@@ -18,6 +18,9 @@ $ mkdir -p /var/lib/etcd
 $ service etcd start
 # 查看服务日志，看是否有错误信息，确保服务正常
 $ journalctl -f -u etcd.service
+
+# 查看配置文件
+$ vim /lib/systemd/system/etcd.service
 ```
 
 ## 2. 部署APIServer（主节点）
@@ -130,31 +133,35 @@ $ journalctl -f -u kube-calico
 #### 5.3 calico可用性验证
 **查看容器运行情况**
 ```bash
-$ docker ps
-CONTAINER ID   IMAGE                COMMAND        CREATED ...
-4d371b58928b   calico/node:v2.6.2   "start_runit"  3 hours ago...
+root@server02:~/kubernetes-starter# docker ps
+CONTAINER ID   IMAGE                                                        COMMAND         CREATED         STATUS         PORTS     NAMES
+87cece521a08   registry.cn-hangzhou.aliyuncs.com/imooc/calico-node:v2.6.2   "start_runit"   7 minutes ago   Up 7 minutes             calico-node
 ```
 **查看节点运行情况**
 ```bash
-$ calicoctl node status
+root@server02:~/kubernetes-starter# calicoctl node status
 Calico process is running.
+
 IPv4 BGP status
-+---------------+-------------------+-------+----------+-------------+
-| PEER ADDRESS  |     PEER TYPE     | STATE |  SINCE   |    INFO     |
-+---------------+-------------------+-------+----------+-------------+
-| 192.168.1.103 | node-to-node mesh | up    | 13:13:13 | Established |
-+---------------+-------------------+-------+----------+-------------+
++----------------+-------------------+-------+----------+-------------+
+|  PEER ADDRESS  |     PEER TYPE     | STATE |  SINCE   |    INFO     |
++----------------+-------------------+-------+----------+-------------+
+| 192.168.48.166 | node-to-node mesh | up    | 08:32:32 | Established |
+| 192.168.48.171 | node-to-node mesh | up    | 08:34:25 | Established |
++----------------+-------------------+-------+----------+-------------+
+
 IPv6 BGP status
 No IPv6 peers found.
 ```
 **查看端口BGP 协议是通过TCP 连接来建立邻居的，因此可以用netstat 命令验证 BGP Peer**
 ```bash
-$ netstat -natp|grep ESTABLISHED|grep 179
-tcp        0      0 192.168.1.102:60959     192.168.1.103:179       ESTABLISHED 29680/bird
+root@server02:~/kubernetes-starter# netstat -natp|grep ESTABLISHED|grep 179
+tcp        0      0 192.168.48.168:52221    192.168.48.171:179      ESTABLISHED 447410/bird         
+tcp        0      0 192.168.48.168:36497    192.168.48.166:179      ESTABLISHED 447410/bird   
 ```
 **查看集群ippool情况**
 ```bash
-$ calicoctl get ipPool -o yaml
+root@server02:~/kubernetes-starter# calicoctl get ipPool -o yaml
 - apiVersion: v1
   kind: ipPool
   metadata:
@@ -180,6 +187,7 @@ $ calicoctl get ipPool -o yaml
 #### 6.1 简介
 kubectl是Kubernetes的命令行工具，是Kubernetes用户和管理员必备的管理工具。
 kubectl提供了大量的子命令，方便管理Kubernetes集群中的各种功能。
+
 #### 6.2 初始化
 使用kubectl的第一步是配置Kubernetes集群以及认证方式，包括：
 - cluster信息：api-server地址
@@ -189,7 +197,7 @@ kubectl提供了大量的子命令，方便管理Kubernetes集群中的各种功
 我们这没有安全相关的东西，只需要设置好api-server和上下文就好啦：
 ```bash
 #指定apiserver地址（ip替换为你自己的api-server地址）
-kubectl config set-cluster kubernetes  --server=http://192.168.1.102:8080
+kubectl config set-cluster kubernetes  --server=http://192.168.48.168:8080
 #指定设置上下文，指定cluster
 kubectl config set-context kubernetes --cluster=kubernetes
 #选择默认的上下文
@@ -204,9 +212,9 @@ kubectl config use-context kubernetes
 **通过系统服务方式部署，但步骤会多一些，具体如下：**
 ```bash
 #确保相关目录存在
-$ mkdir -p /var/lib/kubelet
-$ mkdir -p /etc/kubernetes
-$ mkdir -p /etc/cni/net.d
+$ mkdir -p /var/lib/kubelet    #工作目录
+$ mkdir -p /etc/kubernetes     #配置文件
+$ mkdir -p /etc/cni/net.d      #网络插件
 
 #复制kubelet服务配置文件
 $ cp target/worker-node/kubelet.service /lib/systemd/system/
